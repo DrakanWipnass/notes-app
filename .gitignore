@@ -1,7 +1,4 @@
 node_modules/
+vault/
 .env
-github_repo/
-notes/
-.history/
-a.txt.txt
 .claude/

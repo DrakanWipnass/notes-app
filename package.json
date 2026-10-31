@@ -1,8 +1,22 @@
 {
-  "name": "notes-hosted",
+  "name": "mdvault",
   "version": "1.0.0",
   "private": true,
-  "description": "Self-hosted HTML notebook with in-browser editing",
-  "scripts": { "start": "node server.js" },
-  "engines": { "node": ">=20" }
+  "description": "Local-first, Obsidian-style markdown vault in the browser, synced to GitHub via git",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@highlightjs/cdn-assets": "^11.10.0",
+    "codemirror": "^5.65.18",
+    "js-yaml": "^4.1.0",
+    "katex": "^0.16.11",
+    "lucide": "^0.460.0",
+    "markdown-it": "^14.1.0",
+    "markdown-it-footnote": "^4.0.0",
+    "mermaid": "^10.9.3"
+  }
 }
