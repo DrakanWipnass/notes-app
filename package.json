@@ -1,0 +1,8 @@
+{
+  "name": "notes-hosted",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Self-hosted HTML notebook with in-browser editing",
+  "scripts": { "start": "node server.js" },
+  "engines": { "node": ">=20" }
+}

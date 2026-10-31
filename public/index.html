@@ -1,0 +1,267 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>My Notes</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600;700&display=swap">
+<style>
+  :root { --bg:#f5f6f8; --panel:#ffffff; --line:#d7dce4; --text:#1b2230; --muted:#5d6778; --soft:#eceff4; --accent:#1f5fbf; --danger:#b3261e;
+          --f-display:"IBM Plex Sans Condensed","Arial Narrow",system-ui,sans-serif; --f-body:"IBM Plex Sans",system-ui,sans-serif; --f-mono:"IBM Plex Mono",ui-monospace,Consolas,monospace; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#11151c; --panel:#181d26; --line:#2c3443; --text:#e4e8ef; --muted:#9aa4b5; --soft:#202734; --accent:#7fb0ff; --danger:#ff8a80; } }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body { font: 15px/1.5 var(--f-body); background: var(--bg); color: var(--text); display: flex; flex-direction: column; }
+  header { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: var(--panel); border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  header h1 { font-family: var(--f-display); font-size: 20px; letter-spacing: .01em; margin: 0; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  button { font: inherit; font-family: var(--f-mono); font-size: 13px; padding: 6px 12px; border: 1px solid var(--line); background: var(--panel); color: var(--text); border-radius: 4px; cursor: pointer; }
+  button:hover { border-color: var(--accent); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: var(--panel); }
+  button.danger { color: var(--danger); }
+  button[hidden] { display: none; }
+  main { flex: 1; display: flex; min-height: 0; }
+  nav { width: 260px; overflow: auto; background: var(--panel); border-right: 1px solid var(--line); padding: 8px; flex-shrink: 0; }
+  .dev { font-family: var(--f-display); font-size: 17px; font-weight: 700; color: var(--accent); padding: 8px 6px 4px; display: flex; align-items: center; justify-content: space-between; }
+  .dev button { padding: 0 8px; font-size: 14px; line-height: 22px; }
+  .topic { padding: 6px 10px 6px 18px; border-radius: 6px; cursor: pointer; color: var(--muted); }
+  .topic:hover { background: var(--soft); }
+  .topic.active { background: var(--soft); color: var(--accent); font-weight: 600; box-shadow: inset 3px 0 var(--accent); }
+  #stage { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+  #toolbar { display: none; gap: 4px; padding: 6px 10px; background: var(--panel); border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  #toolbar.on { display: flex; }
+  #toolbar button { padding: 4px 10px; min-width: 34px; }
+  iframe { flex: 1; width: 100%; border: 0; background: #fff; }
+  #empty { margin: auto; color: var(--muted); text-align: center; padding: 20px; }
+  #status { color: var(--muted); font: 12px var(--f-mono); }
+  #menu { display: none; }
+  @media (max-width: 720px) {
+    #menu { display: inline-block; }
+    nav { position: fixed; z-index: 5; top: 0; bottom: 0; left: 0; width: 82%; max-width: 320px; transform: translateX(-100%); transition: transform .2s; box-shadow: 2px 0 12px #0004; }
+    nav.open { transform: none; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <button id="menu">☰</button>
+  <h1 id="title">My Notes</h1>
+  <span id="status"></span>
+  <button id="btnEdit" hidden>Edit</button>
+  <button id="btnSave" class="primary" hidden>Save</button>
+  <button id="btnCancel" hidden>Cancel</button>
+  <button id="btnDelete" class="danger" hidden>Delete</button>
+</header>
+<main>
+  <nav id="nav"></nav>
+  <div id="stage">
+    <div id="toolbar">
+      <button data-cmd="bold"><b>B</b></button>
+      <button data-cmd="italic"><i>I</i></button>
+      <button data-cmd="underline"><u>U</u></button>
+      <button data-block="h2">H2</button>
+      <button data-block="h3">H3</button>
+      <button data-block="p">¶</button>
+      <button data-block="pre">&lt;/&gt;</button>
+      <button data-cmd="insertUnorderedList">• List</button>
+      <button data-cmd="insertOrderedList">1. List</button>
+      <button id="btnLink">Link</button>
+      <button data-cmd="removeFormat">Clear fmt</button>
+      <button id="btnDup" title="Copy the box/row/bullet the cursor is in">⧉ Duplicate</button>
+      <button id="btnDupUp" title="Same, but the next bigger box around it">⧉ Duplicate ▲</button>
+      <button id="btnDel" title="Remove the box/row/bullet the cursor is in" class="danger">✕ Remove</button>
+      <button data-hist="undo" title="Undo (Ctrl+Z)">↶</button>
+      <button data-hist="redo" title="Redo (Ctrl+Y)">↷</button>
+    </div>
+    <div id="empty">Pick a topic on the left, or create a device and add a topic.</div>
+    <iframe id="frame" hidden></iframe>
+  </div>
+</main>
+<script>
+const $ = (id) => document.getElementById(id);
+const frame = $('frame');
+let cur = null;        // {device, topic}
+let editing = false;
+let originalHTML = ''; // for cancel
+
+const q = (d, t) => `device=${encodeURIComponent(d)}&topic=${encodeURIComponent(t)}`;
+const api = async (url, opts) => {
+  const r = await fetch(url, opts);
+  if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || r.statusText);
+  return r;
+};
+const status = (m) => { $('status').textContent = m; if (m) setTimeout(() => $('status').textContent === m && ($('status').textContent = ''), 2500); };
+
+async function loadTree() {
+  const tree = await (await api('/api/tree')).json();
+  const nav = $('nav'); nav.innerHTML = '';
+  const add = document.createElement('button');
+  add.textContent = '+ Device'; add.style.margin = '4px 6px';
+  add.onclick = async () => {
+    const n = prompt('Device name (e.g. F29):'); if (!n) return;
+    try { await api('/api/device?name=' + encodeURIComponent(n), { method: 'POST' }); loadTree(); } catch (e) { alert(e.message); }
+  };
+  nav.appendChild(add);
+  for (const { device, topics } of tree) {
+    const d = document.createElement('div'); d.className = 'dev';
+    d.innerHTML = '<span></span>'; d.firstChild.textContent = device;
+    const b = document.createElement('button'); b.textContent = '+ Topic';
+    b.onclick = () => newTopic(device);
+    d.appendChild(b); nav.appendChild(d);
+    for (const t of topics) {
+      const el = document.createElement('div'); el.className = 'topic'; el.textContent = t;
+      if (cur && cur.device === device && cur.topic === t) el.classList.add('active');
+      el.onclick = () => openNote(device, t);
+      nav.appendChild(el);
+    }
+  }
+}
+
+async function newTopic(device) {
+  const name = prompt(`New topic in ${device} (e.g. Clocking):`); if (!name) return;
+  // Optionally import an existing HTML file so its style is kept
+  const pick = confirm('Import an existing .html file for this topic?\n\nOK = choose a file\nCancel = start with a blank styled note');
+  let html;
+  if (pick) {
+    html = await new Promise((resolve) => {
+      const i = document.createElement('input'); i.type = 'file'; i.accept = '.html,.htm';
+      i.onchange = () => i.files[0] ? i.files[0].text().then(resolve) : resolve(null);
+      i.click();
+    });
+    if (!html) return;
+  } else {
+    html = (await (await fetch('/template.html')).text()).replaceAll('__DEVICE__', device).replaceAll('__TITLE__', name);
+  }
+  try {
+    await api('/api/note?' + q(device, name), { method: 'PUT', body: html });
+    cur = { device, topic: name }; await loadTree(); openNote(device, name);
+  } catch (e) { alert(e.message); }
+}
+
+function openNote(device, topic) {
+  if (editing && !confirm('Discard unsaved edits?')) return;
+  setEditing(false);
+  cur = { device, topic };
+  $('title').textContent = `${device} › ${topic}`;
+  $('empty').hidden = true; frame.hidden = false;
+  frame.src = `/raw/${encodeURIComponent(device)}/${encodeURIComponent(topic)}.html?_=${Date.now()}`;
+  $('btnEdit').hidden = false; $('btnDelete').hidden = false;
+  $('nav').classList.remove('open');
+  loadTree();
+}
+
+function setEditing(on) {
+  editing = on;
+  const doc = frame.contentDocument;
+  if (doc) doc.designMode = on ? 'on' : 'off';
+  $('toolbar').classList.toggle('on', on);
+  $('btnEdit').hidden = on || !cur; $('btnDelete').hidden = on || !cur;
+  $('btnSave').hidden = !on; $('btnCancel').hidden = !on;
+}
+
+function serialize() {
+  const doc = frame.contentDocument;
+  doc.designMode = 'off';
+  const dt = doc.doctype ? new XMLSerializer().serializeToString(doc.doctype) + '\n' : '';
+  return dt + doc.documentElement.outerHTML + '\n';
+}
+
+$('btnEdit').onclick = () => {
+  const doc = frame.contentDocument;
+  originalHTML = serialize();
+  doc.execCommand('styleWithCSS', false, false); // use <b>/<i> tags, not inline styles
+  histReset(); setEditing(true); frame.contentWindow.focus();
+};
+$('btnCancel').onclick = () => {
+  if (!confirm('Discard your edits?')) return;
+  setEditing(false); frame.contentWindow.location.reload();
+};
+$('btnSave').onclick = async () => {
+  try {
+    await api('/api/note?' + q(cur.device, cur.topic), { method: 'PUT', body: serialize() });
+    setEditing(false); status('Saved ✓');
+  } catch (e) { alert('Save failed: ' + e.message); setEditing(true); }
+};
+$('btnDelete').onclick = async () => {
+  if (!confirm(`Delete "${cur.topic}"? (a backup is kept on the server)`)) return;
+  await api('/api/note?' + q(cur.device, cur.topic), { method: 'DELETE' });
+  cur = null; frame.hidden = true; $('empty').hidden = false; $('title').textContent = 'My Notes';
+  $('btnEdit').hidden = true; $('btnDelete').hidden = true; loadTree();
+};
+
+// toolbar
+document.querySelectorAll('#toolbar button').forEach((b) => {
+  b.onmousedown = (e) => e.preventDefault();
+  b.onclick = () => {
+    const doc = frame.contentDocument; frame.contentWindow.focus();
+    if (!b.dataset.hist) snap();
+    if (b.dataset.hist) { b.dataset.hist === 'undo' ? undo() : redo(); }
+    else if (b.dataset.cmd) doc.execCommand(b.dataset.cmd, false, null);
+    else if (b.dataset.block) doc.execCommand('formatBlock', false, b.dataset.block);
+  };
+});
+$('btnLink').onclick = () => {
+  const u = prompt('Link URL:'); if (!u) return;
+  frame.contentWindow.focus(); frame.contentDocument.execCommand('createLink', false, u);
+};
+
+// ---- own undo/redo (native undo can't see box duplicate/remove) ----
+let hist = [], hi = 0, histTimer = null;
+const bodyEl = () => frame.contentDocument.body;
+function histReset() { hist = [bodyEl().innerHTML]; hi = 0; }
+function snap() {
+  clearTimeout(histTimer);
+  const h = bodyEl().innerHTML;
+  if (h === hist[hi]) return;
+  hist = hist.slice(0, hi + 1); hist.push(h);
+  if (hist.length > 200) hist.shift();
+  hi = hist.length - 1;
+}
+function restore() { bodyEl().innerHTML = hist[hi]; }
+function undo() { snap(); if (hi > 0) { hi--; restore(); } }
+function redo() { if (hi < hist.length - 1) { hi++; restore(); } }
+const schedSnap = () => { clearTimeout(histTimer); histTimer = setTimeout(snap, 400); };
+
+// Duplicate / remove "boxes": cards, rows, bullets, sections — whatever the cursor is inside
+const BOX = 'tr, li, .g, .s, .ec, .mini, .col, .lvl, .tbl, section';
+function boxAt(up) {
+  const sel = frame.contentWindow.getSelection();
+  let n = sel.anchorNode; if (n && n.nodeType === 3) n = n.parentElement;
+  let el = n && n.closest ? n.closest(BOX) : null;
+  if (el && up) el = el.parentElement && el.parentElement.closest(BOX);
+  if (!el) alert('Click inside the box you want first.');
+  return el;
+}
+function dup(up) {
+  const el = boxAt(up); if (!el) return;
+  snap();
+  const c = el.cloneNode(true);
+  el.after(c);
+  const r = frame.contentDocument.createRange(); r.selectNodeContents(c); r.collapse(true);
+  const sel = frame.contentWindow.getSelection(); sel.removeAllRanges(); sel.addRange(r);
+  c.scrollIntoView({ block: 'nearest' });
+  snap();
+}
+$('btnDup').onclick = () => dup(false);
+$('btnDupUp').onclick = () => dup(true);
+$('btnDel').onclick = () => { const el = boxAt(false); if (el && confirm('Remove this box?')) { snap(); el.remove(); snap(); } };
+
+// Ctrl/Cmd+S saves; keep the shortcut working inside the iframe too
+const onKey = (e) => {
+  if (!editing || !(e.ctrlKey || e.metaKey)) return;
+  const k = e.key.toLowerCase();
+  if (k === 's') { e.preventDefault(); $('btnSave').click(); }
+  else if (k === 'z' && !e.shiftKey) { e.preventDefault(); undo(); }
+  else if (k === 'y' || (k === 'z' && e.shiftKey)) { e.preventDefault(); redo(); }
+};
+document.addEventListener('keydown', onKey);
+frame.addEventListener('load', () => {
+  try { frame.contentDocument.addEventListener('keydown', onKey); frame.contentDocument.addEventListener('input', () => editing && schedSnap()); } catch {}
+  if (editing) setEditing(false);
+});
+window.addEventListener('beforeunload', (e) => { if (editing) e.preventDefault(); });
+$('menu').onclick = () => $('nav').classList.toggle('open');
+
+loadTree().catch((e) => alert(e.message));
+</script>
+</body>
+</html>
