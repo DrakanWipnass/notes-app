@@ -60,3 +60,18 @@ If two machines edited the same note, it gets `<<<<<<<` markers. Fix the note in
 - The server listens on `127.0.0.1` only.
 - Every write needs an `X-MDVault` header, so other websites can't write to your vault through localhost.
 - Vault `.html` files are never served as HTML from the app's origin.
+
+## Hosting (Render or similar)
+Set these environment variables on the service:
+
+| Variable | Purpose |
+|---|---|
+| `NOTES_PASSWORD` | **Required.** The browser asks for it; any username works. The server refuses to start publicly without it. |
+| `GITHUB_REPO` | Notes repository, e.g. `DrakanWipnass/notes`. It's cloned into the vault on start. |
+| `GITHUB_TOKEN` | Token with write access (contents: read/write) to that repo. |
+| `GITHUB_BRANCH` | Optional. Defaults to the repo's default branch. |
+| `AUTO_SYNC_SECONDS` | Optional. Edits are committed and pushed this many seconds after the last change (default 20). |
+
+- Build command: `npm install`. Start command: `npm start`.
+- Render's disk is wiped on every deploy and restart, so GitHub is where your notes really live; anything not yet pushed is lost on a restart.
+- On Render the server listens on `0.0.0.0`. Locally it stays on `127.0.0.1`.

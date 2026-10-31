@@ -2,6 +2,8 @@
 //   node server.js                 -> vault in ./vault, http://127.0.0.1:3001
 //   VAULT_DIR=D:\notes PORT=4000    -> custom vault / port
 // The vault is a plain folder of .md files (+ attachments). GitHub sync = the vault folder is a git repo (see lib/git.js).
+// Hosting (e.g. Render): set NOTES_PASSWORD (required), GITHUB_REPO=owner/notes and GITHUB_TOKEN (repo write access).
+//   The vault is cloned from GitHub on start and every change is committed + pushed back (AUTO_SYNC_SECONDS, default 20).
 const http = require('http');
 const fs = require('fs');
 const fsp = fs.promises;
@@ -9,8 +11,13 @@ const path = require('path');
 const git = require('./lib/git');
 const { seedVault } = require('./lib/sample-vault');
 
-const PORT = Number(process.env.PORT) || 3001;
-const HOST = process.env.HOST || '127.0.0.1';
+const ENV = process.env;
+const PORT = Number(ENV.PORT) || 3001;
+const HOST = ENV.HOST || (ENV.RENDER ? '0.0.0.0' : '127.0.0.1');
+const PUBLIC_BIND = !['127.0.0.1', 'localhost', '::1'].includes(HOST);
+const PASSWORD = ENV.NOTES_PASSWORD || '';
+// commit + push automatically after edits (on by default when the vault comes from GITHUB_REPO, e.g. on Render)
+const AUTO_SYNC_MS = 1000 * Number(ENV.AUTO_SYNC_SECONDS ?? (ENV.GITHUB_REPO ? 20 : 0));
 const VAULT = path.resolve(process.env.VAULT_DIR || path.join(__dirname, 'vault'));
 const PUBLIC = path.join(__dirname, 'public');
 const NM = path.join(__dirname, 'node_modules');
@@ -116,6 +123,28 @@ function startWatcher() {
   } catch (e) { console.warn('File watching unavailable:', e.message); }
 }
 
+// ---------- auth (HTTP Basic, like the previous app: any username, password = NOTES_PASSWORD) ----------
+function authed(req) {
+  if (!PASSWORD) return true;
+  const h = req.headers.authorization || '';
+  if (!h.startsWith('Basic ')) return false;
+  const pass = Buffer.from(h.slice(6), 'base64').toString().split(':').slice(1).join(':');
+  const a = Buffer.from(pass), b = Buffer.from(PASSWORD);
+  return a.length === b.length && require('crypto').timingSafeEqual(a, b);
+}
+
+// ---------- server-side auto sync ----------
+let autoTimer = null;
+function scheduleAutoSync() {
+  if (!AUTO_SYNC_MS) return;
+  clearTimeout(autoTimer);
+  autoTimer = setTimeout(async () => {
+    const r = await git.sync(VAULT);
+    if (!r.ok) console.warn('auto-sync:', r.error);
+    if ((r.log || []).some((l) => /Pulled/.test(l))) broadcast('change', { paths: ['*'] });
+  }, AUTO_SYNC_MS);
+}
+
 // ---------- HTTP ----------
 async function api(req, res, p, url) {
   const q = (k) => url.searchParams.get(k);
@@ -124,6 +153,7 @@ async function api(req, res, p, url) {
   // Every mutating request must carry this header: it forces a CORS preflight, so random web pages
   // (and sandboxed html embeds) can't write to your vault through localhost.
   if (M !== 'GET' && req.headers['x-mdvault'] !== '1') return send(res, 403, { error: 'missing X-MDVault header' });
+  if (M !== 'GET' && !p.startsWith('/api/git/')) res.on('finish', () => { if (res.statusCode < 300) scheduleAutoSync(); });
 
   if (p === '/api/files' && M === 'GET') return send(res, 200, { vault: VAULT, name: path.basename(VAULT), files: await walk(VAULT) });
 
@@ -211,6 +241,10 @@ async function api(req, res, p, url) {
 
 const server = http.createServer(async (req, res) => {
   try {
+    if (!authed(req)) {
+      res.writeHead(401, { 'WWW-Authenticate': 'Basic realm="MDVault", charset="UTF-8"' });
+      return res.end('Authentication required');
+    }
     const url = new URL(req.url, 'http://x');
     const p = decodeURIComponent(url.pathname);
 
@@ -252,8 +286,27 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
+async function bootstrapFromGitHub() {
+  const repo = ENV.GITHUB_REPO;
+  if (!repo || fs.existsSync(path.join(VAULT, '.git'))) return false;
+  const url = ENV.GITHUB_REMOTE_URL || `https://${ENV.GITHUB_TOKEN ? `x-access-token:${encodeURIComponent(ENV.GITHUB_TOKEN)}@` : ''}github.com/${repo}.git`;
+  const empty = (await fsp.readdir(VAULT)).length === 0;
+  if (empty) { console.log(`Cloning ${repo} into the vault...`); await git.clone(VAULT, url, ENV.GITHUB_BRANCH || ''); }
+  else { const r = await git.setup(VAULT, url, ENV.GITHUB_BRANCH || ''); if (!r.ok) throw new Error(r.error); }
+  return true;
+}
+
 (async () => {
+  if (PUBLIC_BIND && !PASSWORD && ENV.ALLOW_NO_PASSWORD !== '1') {
+    console.error(`Refusing to listen on ${HOST} without a password: anyone could read and edit your notes.\nSet NOTES_PASSWORD (or ALLOW_NO_PASSWORD=1 if something else protects the app).`);
+    process.exit(1);
+  }
   await fsp.mkdir(VAULT, { recursive: true });
+  try {
+    if (await bootstrapFromGitHub()) console.log('Vault cloned from GitHub.');
+    else if (ENV.GITHUB_REPO) { const r = await git.sync(VAULT); if (!r.ok) console.warn('startup sync:', r.error); }
+  } catch (e) { console.error('Could not get the vault from GitHub:', e.message); }
+  await git.ensureIdentity(VAULT, ENV.GIT_AUTHOR_NAME || 'MDVault', ENV.GIT_AUTHOR_EMAIL || 'mdvault@users.noreply.github.com');
   if ((await fsp.readdir(VAULT)).filter((n) => !n.startsWith('.')).length === 0 && !fs.existsSync(path.join(VAULT, '.git'))) {
     await seedVault(VAULT);
     console.log('Created a sample vault with a feature tour.');
@@ -262,5 +315,6 @@ const server = http.createServer(async (req, res) => {
   server.listen(PORT, HOST, () => {
     console.log(`MDVault running at http://${HOST === '0.0.0.0' ? 'localhost' : HOST}:${PORT}`);
     console.log(`  vault: ${VAULT}`);
+    console.log(`  ${PASSWORD ? 'password protected' : 'no password (local only)'}${AUTO_SYNC_MS ? ` - auto-sync to GitHub ${AUTO_SYNC_MS / 1000}s after edits` : ''}`);
   });
 })();
