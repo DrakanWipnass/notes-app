@@ -1,4 +1,4 @@
-/* MDVault — Obsidian-like look. Theme tokens are also inherited inside the reading view's shadow root. */
+/* Notebook — Obsidian-like look. Theme tokens are also inherited inside the reading view's shadow root. */
 :root, :root[data-theme="dark"] {
   --bg-primary: #1e1e1e;
   --bg-primary-alt: #242424;

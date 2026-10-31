@@ -1,4 +1,4 @@
-// MDVault — main application: workspace/tabs, file explorer, sidebars, commands, settings, GitHub sync.
+// Notebook — main application: workspace/tabs, file explorer, sidebars, commands, settings, GitHub sync.
 import { api, rawUrl } from './api.js';
 import {
   vault, loadAll, setFiles, setNote, dropNote, resolve, resolvedLinks, backlinks, allTags, search, fuzzy, highlightIdx,
@@ -63,7 +63,7 @@ async function loadVault() {
   vault.name = name; vault.root = root;
   loadAll(files, notes);
   $('#vault-name').innerHTML = `<img src="/icon.svg" alt="" width="16" height="16"><span title="${esc(root)}">${esc(name)}</span>`;
-  document.title = `${name} - MDVault`;
+  document.title = `${name} - Notebook`;
 }
 
 // ---------------- tabs ----------------
@@ -1206,10 +1206,10 @@ function renderSection(k, body) {
     + setting('Daily note date format', 'Tokens: YYYY MM DD ddd dddd MMM MMMM', textCtl('dailyFormat', 'YYYY-MM-DD'))
     + setting('Daily note template', 'Path or name of a note to use as the template.', textCtl('dailyTemplate', 'Templates/Daily'))
     + setting('Confirm file deletion', 'Deleted files go to the vault\'s .trash folder either way.', toggleCtl('confirmDelete'));
-  if (k === 'hotkeys') html = `<h2>Hotkeys</h2><div class="s-desc" style="margin-bottom:10px">Browsers reserve Ctrl+N / Ctrl+W / Ctrl+T, so MDVault uses Alt for those. Install the app (browser menu → “Install MDVault”) for a desktop-like window.</div>`
+  if (k === 'hotkeys') html = `<h2>Hotkeys</h2><div class="s-desc" style="margin-bottom:10px">Browsers reserve Ctrl+N / Ctrl+W / Ctrl+T, so Notebook uses Alt for those. Install the app (browser menu → “Install Notebook”) for a desktop-like window.</div>`
     + commands.filter((c) => c.key).map((c) => setting(esc(c.name), '', `<span class="s-key" style="font-family:var(--font-mono);font-size:12px;color:var(--text-muted)">${esc(c.key)}</span>`)).join('')
     + setting('Editor', 'Ctrl+B bold · Ctrl+I italic · Ctrl+K link · Ctrl+Shift+H highlight · Ctrl+/ comment · Alt+↑/↓ move line · Ctrl+D delete line · Ctrl+H replace · Ctrl+Space link suggestions · Ctrl+click follow link', '');
-  if (k === 'about') html = `<h2>About</h2>` + setting('Vault location', esc(vault.root), '') + setting('MDVault', 'Local-first markdown notes. Files are plain markdown on disk; GitHub sync uses git.', '');
+  if (k === 'about') html = `<h2>About</h2>` + setting('Vault location', esc(vault.root), '') + setting('Notebook', 'Local-first markdown notes. Files are plain markdown on disk; GitHub sync uses git.', '');
   if (k === 'sync') return renderSyncSection(body);
   body.innerHTML = html;
   bindSettingControls(body);
@@ -1237,7 +1237,7 @@ async function renderSyncSection(body) {
     + setting(connected ? 'Change repository' : 'Connect a GitHub repository', 'Create a repo on GitHub first (private is fine), then paste its URL. Empty and existing repos both work: existing notes are merged with the vault.',
       `<div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end"><input type="text" id="git-remote" placeholder="https://github.com/you/notes.git" value="${connected ? '' : ''}" spellcheck="false"><input type="text" id="git-branch" placeholder="branch (optional, default main)" spellcheck="false"><button class="btn${connected ? '' : ' cta'}" id="git-connect">Connect</button></div>`)
     + setting('Auto sync interval', 'Minutes between automatic syncs. 0 turns it off.', numCtl('autoSync', 0, 1440))
-    + setting('Sync on startup', 'Pull the latest notes from GitHub when MDVault opens.', toggleCtl('syncOnStart'))
+    + setting('Sync on startup', 'Pull the latest notes from GitHub when Notebook opens.', toggleCtl('syncOnStart'))
     + setting('Commit message', 'Leave blank for “vault backup: &lt;date time&gt;”. Supports {{date}} and {{time}}.', textCtl('commitMessage', 'vault backup: {{date}} {{time}}'))
     + (s.changes?.length ? `<div class="pane-heading" style="padding-left:0"><span>Uncommitted changes</span></div><div class="git-changes">${s.changes.slice(0, 200).map((c) => `${esc(c.code)}  ${esc(c.path)}`).join('<br>')}</div>` : '')
     + '<div class="sync-log" id="git-log" style="display:none"></div>';

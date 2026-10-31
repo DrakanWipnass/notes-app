@@ -1,6 +1,6 @@
 {
-  "name": "MDVault",
-  "short_name": "MDVault",
+  "name": "Notebook",
+  "short_name": "Notebook",
   "description": "Local-first markdown vault",
   "start_url": "/",
   "display": "standalone",

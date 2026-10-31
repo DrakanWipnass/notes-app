@@ -1,5 +1,5 @@
 {
-  "name": "mdvault",
+  "name": "notebook",
   "version": "1.0.0",
   "private": true,
   "description": "Local-first, Obsidian-style markdown vault in the browser, synced to GitHub via git",

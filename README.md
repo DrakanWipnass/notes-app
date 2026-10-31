@@ -1,9 +1,9 @@
-# MDVault
+# Notebook
 
 A local-first, Obsidian-style markdown vault that runs in your browser.
 
 - **Your notes are plain files.** A vault is a folder of `.md` notes plus attachments, in `./vault` by default.
-- **GitHub storage is just git.** The vault folder is a git repo that MDVault commits, pulls and pushes for you.
+- **GitHub storage is just git.** The vault folder is a git repo that Notebook commits, pulls and pushes for you.
 - **Everything works offline.** The server has no runtime dependencies, and the front-end libraries are served locally from `node_modules`.
 
 ## Run
@@ -17,7 +17,7 @@ npm install
 npm start                                   # vault in ./vault
 VAULT_DIR="D:/Notes" PORT=4000 npm start    # use an existing folder as the vault
 ```
-In Chrome or Edge you can install it as an app (menu → *Install MDVault*) to get its own window.
+In Chrome or Edge you can install it as an app (menu → *Install Notebook*) to get its own window.
 
 ## Features (Obsidian parity)
 | | |

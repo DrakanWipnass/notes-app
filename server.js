@@ -1,4 +1,4 @@
-// MDVault server — local-first markdown vault. Zero runtime dependencies (front-end libs are vendored from node_modules).
+// Notebook server — local-first markdown vault. Zero runtime dependencies (front-end libs are vendored from node_modules).
 //   node server.js                 -> vault in ./vault, http://127.0.0.1:3001
 //   VAULT_DIR=D:\notes PORT=4000    -> custom vault / port
 // The vault is a plain folder of .md files (+ attachments). GitHub sync = the vault folder is a git repo (see lib/git.js).
@@ -242,7 +242,7 @@ async function api(req, res, p, url) {
 const server = http.createServer(async (req, res) => {
   try {
     if (!authed(req)) {
-      res.writeHead(401, { 'WWW-Authenticate': 'Basic realm="MDVault", charset="UTF-8"' });
+      res.writeHead(401, { 'WWW-Authenticate': 'Basic realm="Notebook", charset="UTF-8"' });
       return res.end('Authentication required');
     }
     const url = new URL(req.url, 'http://x');
@@ -306,14 +306,14 @@ async function bootstrapFromGitHub() {
     if (await bootstrapFromGitHub()) console.log('Vault cloned from GitHub.');
     else if (ENV.GITHUB_REPO) { const r = await git.sync(VAULT); if (!r.ok) console.warn('startup sync:', r.error); }
   } catch (e) { console.error('Could not get the vault from GitHub:', e.message); }
-  await git.ensureIdentity(VAULT, ENV.GIT_AUTHOR_NAME || 'MDVault', ENV.GIT_AUTHOR_EMAIL || 'mdvault@users.noreply.github.com');
+  await git.ensureIdentity(VAULT, ENV.GIT_AUTHOR_NAME || 'Notebook', ENV.GIT_AUTHOR_EMAIL || 'notebook@users.noreply.github.com');
   if ((await fsp.readdir(VAULT)).filter((n) => !n.startsWith('.')).length === 0 && !fs.existsSync(path.join(VAULT, '.git'))) {
     await seedVault(VAULT);
     console.log('Created a sample vault with a feature tour.');
   }
   startWatcher();
   server.listen(PORT, HOST, () => {
-    console.log(`MDVault running at http://${HOST === '0.0.0.0' ? 'localhost' : HOST}:${PORT}`);
+    console.log(`Notebook running at http://${HOST === '0.0.0.0' ? 'localhost' : HOST}:${PORT}`);
     console.log(`  vault: ${VAULT}`);
     console.log(`  ${PASSWORD ? 'password protected' : 'no password (local only)'}${AUTO_SYNC_MS ? ` - auto-sync to GitHub ${AUTO_SYNC_MS / 1000}s after edits` : ''}`);
   });
